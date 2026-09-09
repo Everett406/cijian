@@ -28,6 +28,9 @@ data class Favorites(
 @Serializable
 data class HistoryItem(val type: String, val title: String, val detail: String, val time: Long)
 
+@Serializable
+data class GuessStats(val streak: Int = 0, val best: Int = 0, val totalWins: Int = 0)
+
 /**
  * 收藏与历史：kotlinx.serialization + JSON 文件持久化（filesDir）。
  * 不引入 Room，保持工程极简。
@@ -45,6 +48,10 @@ class Store(context: Context) {
     private val _history = MutableStateFlow(listOf<HistoryItem>())
     val history: StateFlow<List<HistoryItem>> = _history
 
+    private val _guessStats = MutableStateFlow(GuessStats())
+    val guessStats: StateFlow<GuessStats> = _guessStats
+    private val statsFile = context.filesDir.resolve("guess_stats.json")
+
     init {
         scope.launch {
             runCatching {
@@ -52,6 +59,9 @@ class Store(context: Context) {
             }
             runCatching {
                 if (histFile.exists()) _history.value = json.decodeFromString<List<HistoryItem>>(histFile.readText())
+            }
+            runCatching {
+                if (statsFile.exists()) _guessStats.value = json.decodeFromString<GuessStats>(statsFile.readText())
             }
         }
     }
@@ -104,6 +114,31 @@ class Store(context: Context) {
     fun clearHistory() {
         _history.value = emptyList()
         persistHist()
+    }
+
+    // ── 猜词战绩 ──
+
+    /** 猜中一局：连胜 +1，更新最佳与累计 */
+    fun recordGuessWin() {
+        val cur = _guessStats.value
+        _guessStats.value = cur.copy(
+            streak = cur.streak + 1,
+            best = maxOf(cur.best, cur.streak + 1),
+            totalWins = cur.totalWins + 1
+        )
+        persistStats()
+    }
+
+    /** 弃局或猜错一整局：连胜清零（最佳保留） */
+    fun resetGuessStreak() {
+        if (_guessStats.value.streak == 0) return
+        _guessStats.value = _guessStats.value.copy(streak = 0)
+        persistStats()
+    }
+
+    private fun persistStats() {
+        val snap = _guessStats.value
+        scope.launch { runCatching { statsFile.writeText(json.encodeToString(snap)) } }
     }
 
     // ── 持久化 ──

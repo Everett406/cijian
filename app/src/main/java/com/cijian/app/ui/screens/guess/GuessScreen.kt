@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,8 +75,10 @@ fun GuessScreen(nav: NavHostController) {
     var guessList by remember { mutableStateOf(listOf<Guess>()) }
     var hint by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("playing") }   // playing / won / gaveup
-    var rounds by remember { mutableIntStateOf(0) }        // 累计猜中局数
+    var rounds by remember { mutableIntStateOf(0) }        // 本会话累计猜中局数
     var usedTargets by remember { mutableStateOf(setOf<String>()) }
+    var hintLevel by remember { mutableIntStateOf(0) }     // 0 无 / 1 首字 / 2 语义方向
+    val stats by store.guessStats.collectAsState()
 
     fun newGame() {
         var w = engine.randomCommonWord(twoChar = true)
@@ -83,16 +86,27 @@ fun GuessScreen(nav: NavHostController) {
         while (w in usedTargets && guard < 30) { w = engine.randomCommonWord(twoChar = true); guard++ }
         target = w
         usedTargets = usedTargets + w
-        input = ""; guessList = emptyList(); hint = ""; status = "playing"
+        input = ""; guessList = emptyList(); hint = ""; status = "playing"; hintLevel = 0
     }
 
     LaunchedEffect(Unit) { newGame() }
+
+    fun askHint() {
+        if (status != "playing" || hintLevel >= 2) return
+        hintLevel++
+        hint = if (hintLevel == 1) {
+            "提示一：它的首字是「${target.first()}」"
+        } else {
+            val nb = engine.nearest(target, 3).firstOrNull()?.word ?: ""
+            "提示二：它近「$nb」，却不是它"
+        }
+    }
 
     fun submitGuess(raw: String, isHint: Boolean = false) {
         val w = raw.trim()
         if (w.isEmpty() || status != "playing") return
         if (!engine.contains(w)) { hint = "词表里没有「$w」，换一个常用的词试试"; return }
-        hint = ""
+        if (!isHint) hint = ""
         val cos = engine.similarity(w, target)
         val pct = if (w == target) 100f else engine.relevancePct(cos)
         guessList = (listOf(Guess(w, cos, pct)) + guessList).sortedByDescending { it.pct }
@@ -100,10 +114,17 @@ fun GuessScreen(nav: NavHostController) {
         if (w == target) {
             status = "won"
             rounds++
-            store.addHistory("猜词", "猜词·$target", "第 ${guessList.size} 次猜中")
+            store.recordGuessWin()
+            store.addHistory("猜词", "猜词·$target", "第 ${guessList.size} 次猜中${if (hintLevel > 0) " · 用了 $hintLevel 条提示" else ""}")
         } else if (isHint) {
             hint = "帮你随机试了一个：$w"
         }
+    }
+
+    fun giveUp() {
+        status = "gaveup"
+        store.resetGuessStreak()
+        store.addHistory("猜词", "猜词·$target", "未猜中")
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -124,7 +145,10 @@ fun GuessScreen(nav: NavHostController) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("本局已猜 ${guessList.size} 次", color = InkSoft, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Text("累计猜中 $rounds 局", color = Cinnabar, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (stats.streak > 0) "连胜 ${stats.streak} · 最佳 ${stats.best}" else "累计猜中 ${stats.totalWins} 局",
+                        color = Cinnabar, fontSize = 13.sp, fontWeight = FontWeight.Bold
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
             }
@@ -143,7 +167,7 @@ fun GuessScreen(nav: NavHostController) {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            if (status == "won") "用了 ${guessList.size} 次机会 · 最近的一次提示是「${guessList.firstOrNull()?.word ?: ""}」"
+                            if (status == "won") "用了 ${guessList.size} 次机会${if (hintLevel > 0) " · 领了 $hintLevel 条提示" else ""} · 连胜 ${stats.streak} 局"
                             else "离得最近的一次：「${guessList.maxByOrNull { it.pct }?.word ?: "（未猜过）"}」",
                             color = InkSoft, fontSize = 13.sp
                         )
@@ -184,6 +208,13 @@ fun GuessScreen(nav: NavHostController) {
                             Text(hint, color = if (hint.startsWith("帮你")) Indigo else Cinnabar, fontSize = 12.sp)
                         }
                         Spacer(Modifier.height(8.dp))
+                        // 提示系统：猜满 4 次后可领提示，最多两条（首字 / 语义方向）
+                        if (guessList.size >= 4 && hintLevel < 2) {
+                            InkButton(
+                                text = if (hintLevel == 0) "求提示（首字）" else "再要一条（语义方向）",
+                                onClick = { askHint() }
+                            )
+                        }
                         InkButton(text = "随便猜一个（消耗一次机会）", onClick = {
                             submitGuess(engine.randomCommonWord(), isHint = true)
                         })
@@ -201,7 +232,7 @@ fun GuessScreen(nav: NavHostController) {
                             Text(
                                 "放弃本局",
                                 color = InkFaint, fontSize = 12.sp,
-                                modifier = Modifier.clickable { status = "gaveup" }
+                                modifier = Modifier.clickable { giveUp() }
                             )
                         }
                     })

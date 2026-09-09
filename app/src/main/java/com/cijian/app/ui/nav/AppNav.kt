@@ -56,8 +56,10 @@ import com.cijian.app.EngineState
 import com.cijian.app.ErrorScreen
 import com.cijian.app.LoadingScreen
 import com.cijian.app.ciJian
+import com.cijian.app.ui.screens.blitz.BlitzScreen
 import com.cijian.app.ui.screens.bridge.BridgeScreen
 import com.cijian.app.ui.screens.calc.CalcScreen
+import com.cijian.app.ui.screens.distill.DistillScreen
 import com.cijian.app.ui.screens.favorites.FavoritesScreen
 import com.cijian.app.ui.screens.guess.GuessScreen
 import com.cijian.app.ui.screens.home.HomeScreen
@@ -218,6 +220,8 @@ fun MainScaffold() {
                         "quiz" -> QuizScreen(nav)
                         "guess" -> GuessScreen(nav)
                         "bridge" -> BridgeScreen(nav)
+                        "distill" -> DistillScreen(nav)
+                        "blitz" -> BlitzScreen(nav)
                         else -> CalcScreen(nav)
                     }
                 }

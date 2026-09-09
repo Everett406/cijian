@@ -286,14 +286,68 @@ class Word2VecEngine {
         return stops
     }
 
+    // ────────────────────────── 一句话凝词 ──────────────────────────
+
+    /**
+     * 凝词：对一句话的分词结果做加权平均（两字词权重 1.0、单字 0.45 由调用方定），
+     * 凝出这句心事指向的那个词，并给出三位邻居。weighted 由调用方分词后传入。
+     */
+    fun distill(weighted: List<Pair<String, Float>>): DistillResult? {
+        if (weighted.isEmpty()) return null
+        val acc = FloatArray(dim)
+        var tw = 0f
+        val used = mutableListOf<String>()
+        for ((w, wt) in weighted) {
+            val v = vector(w) ?: continue
+            for (j in 0 until dim) acc[j] += v[j] * wt
+            tw += wt; used.add(w)
+        }
+        if (tw <= 0f || used.isEmpty()) return null
+        for (j in 0 until dim) acc[j] /= tw
+        val nb = nearestTo(acc, 6, used.toSet())
+        if (nb.isEmpty()) return null
+        val core = nb.first()
+        val iCore = indexOf(core.word) ?: return null
+        var cos = 0f
+        for (j in 0 until dim) cos += acc[j] * vecs[iCore * dim + j]   // acc 已被 nearestTo 归一化
+        return DistillResult(core.word, cos, nb.drop(1).take(3), used)
+    }
+
+    // ────────────────────────── 词桥参考路线 ──────────────────────────
+
+    /**
+     * 引擎参考路线：beam search（宽度 4），每步只踩近邻，尽量少步数抵达终点。
+     * 返回完整路线（含起终点）；maxSteps 内到不了则返回 null。
+     */
+    fun bridgeBest(from: String, to: String, maxSteps: Int = 10): List<String>? {
+        if (indexOf(from) == null || indexOf(to) == null) return null
+        if (from == to) return listOf(from)
+        data class Node(val route: List<String>, val last: String, val visited: Set<String>)
+        var beam = listOf(Node(listOf(from), from, setOf(from)))
+        repeat(maxSteps) {
+            val next = mutableListOf<Node>()
+            for (node in beam) {
+                if (node.last == to) return node.route
+                for (cand in nearest(node.last, 10, node.visited)) {
+                    next.add(Node(node.route + cand.word, cand.word, node.visited + cand.word))
+                }
+            }
+            if (next.isEmpty()) break
+            beam = next.distinctBy { it.last }
+                .sortedByDescending { similarity(it.last, to) }
+                .take(4)
+        }
+        return beam.firstOrNull { it.last == to }?.route
+    }
+
     // ────────────────────────── 类比测验 ──────────────────────────
 
-    /** 出题（题型由调用方决定；「混合」模式在 UI 层随机挑一种传入）。 */
-    fun generateQuiz(pairs: List<Pair<String, String>>, kind: QuizKind): QuizQuestion? = when (kind) {
-        QuizKind.ANALOGY -> genAnalogy(pairs)
-        QuizKind.CALC -> genCalc(pairs)
-        QuizKind.ODD -> genOdd()
-        QuizKind.CLOSEST -> genClosest()
+    /** 出题（题型与难度由调用方决定；「混合」模式在 UI 层随机挑一种传入）。 */
+    fun generateQuiz(pairs: List<Pair<String, String>>, kind: QuizKind, level: QuizLevel = QuizLevel.NORMAL): QuizQuestion? = when (kind) {
+        QuizKind.ANALOGY -> genAnalogy(pairs, level)
+        QuizKind.CALC -> genCalc(pairs, level)
+        QuizKind.ODD -> genOdd(level)
+        QuizKind.CLOSEST -> genClosest(level)
         QuizKind.MIX -> null
     }
 
@@ -310,22 +364,25 @@ class Word2VecEngine {
     }
 
     /** 题型一：经典类比 A 之于 B，如同 C 之于 ？（把 B−A 的关系差平移到 C） */
-    private fun genAnalogy(pairs: List<Pair<String, String>>): QuizQuestion? {
+    private fun genAnalogy(pairs: List<Pair<String, String>>, level: QuizLevel): QuizQuestion? {
         val usable = usablePairs(pairs)
         if (usable.isEmpty()) return null
+        val cMax = when (level) { QuizLevel.EASY -> 0.72f; QuizLevel.HARD -> 0.85f; else -> 0.82f }
+        val gap = when (level) { QuizLevel.EASY -> 0.15f; QuizLevel.HARD -> 0.03f; else -> 0.06f }
+        val ansMin = when (level) { QuizLevel.EASY -> 0.42f; QuizLevel.HARD -> 0.30f; else -> 0.35f }
         repeat(4) {
             val (a, b) = usable[Random.Default.nextInt(usable.size)]
             val va = vector(a) ?: return null
             val c = nearestTo(va, 40, setOf(a, b))
-                .filter { it.score < 0.82f }
+                .filter { it.score < cMax }
                 .randomOrNull()?.word ?: return@repeat
             val vb = vector(b) ?: return null
             val vc = vector(c) ?: return null
             val target = FloatArray(dim) { j -> vb[j] - va[j] + vc[j] }
             val ans = nearestTo(target, 1, setOf(a, b, c)).firstOrNull() ?: return@repeat
-            if (ans.score < 0.35f) return@repeat  // 类比关系太弱，换一组
+            if (ans.score < ansMin) return@repeat  // 类比关系太弱，换一组
             val ds = nearestTo(target, 40, setOf(a, b, c, ans.word))
-                .filter { it.score < ans.score - 0.06f }.shuffled().take(3).map { it.word }.toMutableList()
+                .filter { it.score < ans.score - gap }.shuffled().take(3).map { it.word }.toMutableList()
             fillDistractors(ds, ans.word, setOf(a, b, c), 3)
             return QuizQuestion(
                 QuizKind.ANALOGY,
@@ -338,21 +395,27 @@ class Word2VecEngine {
         return null
     }
 
-    /** 题型二：二词算式 A - B = ? 或 A + B = ? */
-    private fun genCalc(pairs: List<Pair<String, String>>): QuizQuestion? {
+    /** 题型二：二词算式 A - B = ? 或 A + B = ?（入门档只出减法，更直观） */
+    private fun genCalc(pairs: List<Pair<String, String>>, level: QuizLevel): QuizQuestion? {
         val usable = usablePairs(pairs)
         if (usable.isEmpty()) return null
+        val gap = when (level) { QuizLevel.EASY -> 0.12f; QuizLevel.HARD -> 0.04f; else -> 0.07f }
         repeat(6) {
             val (a, b) = usable[Random.Default.nextInt(usable.size)]
             val va = vector(a) ?: return null
             val vb = vector(b) ?: return null
-            val minus = Random.Default.nextBoolean()
+            val minus = if (level == QuizLevel.EASY) true else Random.Default.nextBoolean()
             val target = FloatArray(dim) { j -> if (minus) va[j] - vb[j] else va[j] + vb[j] }
             val ans = nearestTo(target, 1, setOf(a, b)).firstOrNull() ?: return@repeat
-            val ok = if (minus) ans.score in 0.28f..0.85f else ans.score in 0.45f..0.92f
+            val ok = when {
+                minus && level == QuizLevel.EASY -> ans.score in 0.35f..0.80f
+                minus -> ans.score in 0.25f..0.88f
+                level == QuizLevel.NORMAL -> ans.score in 0.45f..0.92f
+                else -> ans.score in 0.40f..0.94f
+            }
             if (!ok) return@repeat
             val ds = nearestTo(target, 40, setOf(a, b, ans.word))
-                .filter { it.score < ans.score - 0.07f }.shuffled().take(3).map { it.word }.toMutableList()
+                .filter { it.score < ans.score - gap }.shuffled().take(3).map { it.word }.toMutableList()
             fillDistractors(ds, ans.word, setOf(a, b), 3)
             val expr = if (minus) "$a - $b = ?" else "$a + $b = ?"
             return QuizQuestion(
@@ -366,15 +429,21 @@ class Word2VecEngine {
         return null
     }
 
-    /** 题型三：圈外人（三个同类词夹一个例外） */
-    private fun genOdd(): QuizQuestion? {
+    /** 题型三：圈外人（三个同类词夹一个例外；烧脑档例外更难抓） */
+    private fun genOdd(level: QuizLevel): QuizQuestion? {
         repeat(6) {
             val seed = randomCommonWord()
             val near = nearest(seed, 40, setOf(seed))
-            val group = near.filter { it.score in 0.60f..0.88f }.take(3)
+            val gMin: Float; val gMax: Float; val oMin: Float; val oMax: Float; val mutual: Float
+            when (level) {
+                QuizLevel.EASY -> { gMin = 0.62f; gMax = 0.85f; oMin = 0.20f; oMax = 0.40f; mutual = 0.50f }
+                QuizLevel.HARD -> { gMin = 0.66f; gMax = 0.88f; oMin = 0.34f; oMax = 0.52f; mutual = 0.60f }
+                else -> { gMin = 0.60f; gMax = 0.88f; oMin = 0.22f; oMax = 0.50f; mutual = 0.55f }
+            }
+            val group = near.filter { it.score in gMin..gMax }.take(3)
             if (group.size < 3) return@repeat
-            val outCand = near.filter { it.score in 0.22f..0.50f }
-                .filter { o -> group.all { g -> similarity(o.word, g.word) < 0.55f } }
+            val outCand = near.filter { it.score in oMin..oMax }
+                .filter { o -> group.all { g -> similarity(o.word, g.word) < mutual } }
             val outsider = outCand.randomOrNull() ?: return@repeat
             val innerAvg = (similarity(group[0].word, group[1].word) +
                     similarity(group[0].word, group[2].word) +
@@ -392,13 +461,18 @@ class Word2VecEngine {
         return null
     }
 
-    /** 题型四：最近词热身（谁与种子词向量夹角最小） */
-    private fun genClosest(): QuizQuestion? {
+    /** 题型四：最近词热身（烧脑档干扰词更近） */
+    private fun genClosest(level: QuizLevel): QuizQuestion? {
         repeat(6) {
             val seed = randomCommonWord()
             val near = nearest(seed, 12, setOf(seed))
             val ans = near.firstOrNull { it.score in 0.55f..0.95f } ?: return@repeat
-            val ds = near.filter { it.score in 0.10f..0.42f }.shuffled().take(3).map { it.word }.toMutableList()
+            val dRange = when (level) {
+                QuizLevel.EASY -> 0.05f..0.35f
+                QuizLevel.HARD -> 0.28f..0.50f
+                else -> 0.10f..0.42f
+            }
+            val ds = near.filter { it.score in dRange }.shuffled().take(3).map { it.word }.toMutableList()
             fillDistractors(ds, ans.word, setOf(seed), 3)
             return QuizQuestion(
                 QuizKind.CLOSEST,
@@ -415,6 +489,13 @@ class Word2VecEngine {
 /** 测验题型。MIX 仅用于 UI 层表示「混合」，传给引擎前会先随机成具体题型 */
 enum class QuizKind(val label: String) {
     MIX("混合"), ANALOGY("类比"), CALC("算式"), ODD("圈外人"), CLOSEST("最近词")
+}
+
+/** 测验难度：档位控制答案与干扰项的语义距离 */
+enum class QuizLevel(val label: String, val sub: String) {
+    EASY("入门", "关系明显，一眼看穿"),
+    NORMAL("进阶", "常规梯度"),
+    HARD("烧脑", "干扰项贴得很近")
 }
 
 data class QuizQuestion(

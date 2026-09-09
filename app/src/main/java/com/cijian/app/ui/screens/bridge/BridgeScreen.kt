@@ -74,6 +74,20 @@ fun BridgeScreen(nav: NavHostController) {
     var status by remember { mutableStateOf("playing") }   // playing / won / lost
     var wins by remember { mutableIntStateOf(0) }
     var reference by remember { mutableStateOf(listOf<String>()) }
+    var bestRoute by remember { mutableStateOf(listOf<String>()) }   // 引擎参考路线（含起终点）
+
+    // 通关后算一次引擎参考路线，评分 = 参考步数 / 你的步数
+    LaunchedEffect(status, start, target) {
+        if (status == "won" && bestRoute.isEmpty()) {
+            val s = start; val t = target
+            kotlinx.coroutines.withContext(Dispatchers.Default) {
+                val r = engine.bridgeBest(s, t, MAX_STEPS)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    bestRoute = r ?: emptyList()
+                }
+            }
+        }
+    }
 
     fun loadSuggestions(w: String) {
         scope.launch(Dispatchers.Default) {
@@ -93,7 +107,7 @@ fun BridgeScreen(nav: NavHostController) {
             guard++
         }
         start = s; target = t; current = s
-        trail = listOf(s); input = ""; hint = ""; status = "playing"; reference = emptyList()
+        trail = listOf(s); input = ""; hint = ""; status = "playing"; reference = emptyList(); bestRoute = emptyList()
         loadSuggestions(s)
     }
 
@@ -128,6 +142,17 @@ fun BridgeScreen(nav: NavHostController) {
     val cosToTarget = if (current.isEmpty() || target.isEmpty()) 0f else engine.similarity(current, target)
     val pct = engine.relevancePct(cosToTarget)
     val stepsUsed = trail.size - 1
+    // 路线效率：引擎参考步数 ÷ 你的步数（上限 100%）
+    val efficiency = if (status == "won" && bestRoute.isNotEmpty() && stepsUsed > 0)
+        ((bestRoute.size - 1).toFloat() / stepsUsed).coerceIn(0f, 1f)
+    else null
+    val efficiencyLabel = when {
+        efficiency == null -> ""
+        efficiency >= 0.999f -> "与引擎参考同梯，完美路线"
+        efficiency >= 0.8f -> "相当高效，几乎是最短走法"
+        efficiency >= 0.6f -> "稳中带巧，绕了一点风景"
+        else -> "曲径通幽，走的路比必要的多"
+    }
 
     Column(Modifier.fillMaxSize()) {
         ToolTopBar(title = "词桥") { nav.popBackStack() }
@@ -181,6 +206,13 @@ fun BridgeScreen(nav: NavHostController) {
                             if (status == "won") "走通了！${stepsUsed} 步抵达「$target」" else "步数用尽，「$target」还在前方",
                             color = Cinnabar, fontSize = 17.sp, fontWeight = FontWeight.Bold
                         )
+                        if (status == "won" && bestRoute.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "路线效率 ${(efficiency?.times(100))?.toInt() ?: 100}% · 引擎参考 ${bestRoute.size - 1} 步 · $efficiencyLabel",
+                                color = InkSoft, fontSize = 13.sp, lineHeight = 19.sp
+                            )
+                        }
                         if (status == "lost" && reference.isNotEmpty()) {
                             Spacer(Modifier.height(6.dp))
                             Text(

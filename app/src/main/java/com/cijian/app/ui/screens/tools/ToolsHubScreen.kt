@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Route
@@ -50,9 +52,11 @@ fun ToolsHubScreen(nav: NavHostController) {
     val tools = listOf(
         ToolEntry("path", "词义之路", "从一词走至另一词", Icons.Outlined.Route),
         ToolEntry("calc", "词语计算器", "国王 - 男人 + 女人 ≈ ?", Icons.Outlined.Calculate),
-        ToolEntry("quiz", "类比测验", "补全词与词的关系", Icons.Outlined.Quiz),
+        ToolEntry("distill", "一句话凝词", "心事凝成一个词", Icons.Outlined.AutoAwesome),
+        ToolEntry("quiz", "类比测验", "四种题型·三档难度", Icons.Outlined.Quiz),
         ToolEntry("guess", "语义猜词", "凭相关度猜隐藏词", Icons.Outlined.Psychology),
         ToolEntry("bridge", "词桥", "十步搭起一座桥", Icons.Outlined.SwapHoriz),
+        ToolEntry("blitz", "词海消消", "限时连消相似词对", Icons.Outlined.GridOn),
         ToolEntry("segment", "分词工坊", "一句话拆成词", Icons.Outlined.TextFields),
     )
 
@@ -60,7 +64,7 @@ fun ToolsHubScreen(nav: NavHostController) {
         item {
             Text("词途", fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
             Spacer(Modifier.height(4.dp))
-            Text("六般玩法，皆在于此 · 每一种都是语义空间的一次漫游", color = InkSoft, fontSize = 13.sp)
+            Text("八般玩法，皆在于此 · 每一种都是语义空间的一次漫游", color = InkSoft, fontSize = 13.sp)
             Spacer(Modifier.height(16.dp))
         }
         items(tools.size) { i ->

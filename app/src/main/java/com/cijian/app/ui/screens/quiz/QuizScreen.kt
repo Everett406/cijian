@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.cijian.app.ciJian
 import com.cijian.app.core.QuizKind
+import com.cijian.app.core.QuizLevel
 import com.cijian.app.core.QuizPairs
 import com.cijian.app.core.QuizQuestion
 import com.cijian.app.ui.components.CinnabarButton
@@ -72,6 +73,7 @@ fun QuizScreen(nav: NavHostController) {
     var streak by remember { mutableIntStateOf(0) }
     var total by remember { mutableIntStateOf(0) }
     var kind by remember { mutableStateOf(QuizKind.MIX) }
+    var level by remember { mutableStateOf(QuizLevel.NORMAL) }
 
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     fun launchNext(k: QuizKind) {
@@ -80,8 +82,8 @@ fun QuizScreen(nav: NavHostController) {
         else k
         scope.launch(Dispatchers.Default) {
             // 首选题型生成失败时退到最近词题，保证总能出题
-            val q = engine.generateQuiz(QuizPairs.pairs, real)
-                ?: engine.generateQuiz(QuizPairs.pairs, QuizKind.CLOSEST)
+            val q = engine.generateQuiz(QuizPairs.pairs, real, level)
+                ?: engine.generateQuiz(QuizPairs.pairs, QuizKind.CLOSEST, level)
             withContext(Dispatchers.Main) {
                 question = q
                 picked = null   // 关键：新题必须清空上一题的选中态，否则会自动亮出答案
@@ -89,7 +91,7 @@ fun QuizScreen(nav: NavHostController) {
         }
     }
 
-    LaunchedEffect(kind) { launchNext(kind) }
+    LaunchedEffect(kind, level) { launchNext(kind) }
 
     Column(Modifier.fillMaxSize()) {
         ToolTopBar(title = "类比测验") { nav.popBackStack() }
@@ -127,7 +129,31 @@ fun QuizScreen(nav: NavHostController) {
                     )
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(8.dp))
+            // 难度分档：控制答案与干扰项的语义距离
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("难度", color = InkFaint, fontSize = 12.sp, modifier = Modifier.padding(start = 2.dp))
+                QuizLevel.entries.forEach { l ->
+                    FilterChip(
+                        selected = level == l,
+                        onClick = { if (level != l) level = l },
+                        label = { Text(l.label, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Indigo,
+                            selectedLabelColor = Paper,
+                        )
+                    )
+                }
+                Text(
+                    level.sub, color = InkFaint, fontSize = 11.sp,
+                    modifier = Modifier.padding(start = 2.dp)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
         }
 
         val q = question
