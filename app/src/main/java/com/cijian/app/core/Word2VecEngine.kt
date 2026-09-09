@@ -324,7 +324,9 @@ class Word2VecEngine {
         if (from == to) return listOf(from)
         data class Node(val route: List<String>, val last: String, val visited: Set<String>)
         var beam = listOf(Node(listOf(from), from, setOf(from)))
-        repeat(maxSteps) {
+        var steps = 0
+        while (steps < maxSteps) {
+            steps++
             val next = mutableListOf<Node>()
             for (node in beam) {
                 if (node.last == to) return node.route
@@ -497,6 +499,14 @@ enum class QuizLevel(val label: String, val sub: String) {
     NORMAL("进阶", "常规梯度"),
     HARD("烧脑", "干扰项贴得很近")
 }
+
+/** 一句话凝词的结果：核心词、与全句向量的余弦、三位邻居、实际参与运算的词 */
+data class DistillResult(
+    val core: String,
+    val cos: Float,
+    val neighbors: List<Scored>,
+    val usedWords: List<String>
+)
 
 data class QuizQuestion(
     val kind: QuizKind,
