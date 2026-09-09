@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # versionCode 需要 git 提交总数
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Download word2vec model
+        run: |
+          mkdir -p app/src/main/assets/models
+          curl -sL --retry 3 --connect-timeout 30 \
+            -o app/src/main/assets/models/light_Tencent_AILab_ChineseEmbedding.bin \
+            "https://hf-mirror.com/shibing624/text2vec-word2vec-tencent-chinese/resolve/main/light_Tencent_AILab_ChineseEmbedding.bin"
+          echo "5515923c7e67cdc7eb42996546e0bad273c8452f3bfad6db0794e51c848d151b  app/src/main/assets/models/light_Tencent_AILab_ChineseEmbedding.bin" | sha256sum -c -
+
+      - name: Restore signing keystore
+        env:
+          CI_KEYSTORE_BASE64: ${{ secrets.CI_KEYSTORE_BASE64 }}
+        run: |
+          echo "$CI_KEYSTORE_BASE64" | base64 -d > cijian-release.jks
+          ls -la cijian-release.jks
+
+      - name: Build release (APK + AAB)
+        env:
+          CI_KEYSTORE_FILE: cijian-release.jks
+          CI_KEYSTORE_PASSWORD: ${{ secrets.CI_KEYSTORE_PASSWORD }}
+          CI_KEY_ALIAS: cijian
+          CI_KEY_PASSWORD: ${{ secrets.CI_KEY_PASSWORD }}
+        run: |
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            export CI_VERSION_NAME="${GITHUB_REF_NAME#v}"
+          else
+            export CI_VERSION_NAME="1.0.0-local"
+          fi
+          export CI_VERSION_CODE=$(git rev-list --count HEAD)
+          echo "versionName=$CI_VERSION_NAME versionCode=$CI_VERSION_CODE"
+          gradle :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
+
+      - name: Upload artifacts (on workflow_dispatch)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cijian-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/CiJian-${VER}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "dist/CiJian-${VER}.aab" || true
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "词间 v${VER}" \
+            --notes "词间 CiJian v${VER}
+
+          基于腾讯 AI Lab 中文词向量（143,613 词 × 200 维）的语义探索应用。
+
+          ## 安装
+          下载 CiJian-${VER}.apk 直接安装（需允许安装未知来源应用）。
+
+          ## 功能
+          - 词语计算器：国王 − 男人 + 女人 ≈ 王后
+          - 词义之路：任意两词间的语义路径 + 力导向图谱
+          - 语义星图：14 万词的 2D / 3D 星空漫游
+          - 分词工坊：一句话拆成可玩的词
+          - 类比测验：a:b :: c:? 猜词计分
+          - 收藏与历史、随机探索、分享卡片
+
+          完全离线运行，无任何网络请求。"
