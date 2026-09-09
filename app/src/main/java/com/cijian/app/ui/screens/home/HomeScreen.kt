@@ -118,22 +118,22 @@ fun HomeScreen(nav: NavHostController) {
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         suggestions.take(5).forEach { w ->
-                            WordChip(w, filled = false) {
+                            WordChip(w, filled = false, onClick = {
                                 query = ""
                                 store.addHistory("词", w, "搜索")
                                 nav.navigate(Routes.word(w))
-                            }
+                            })
                         }
                     }
                     if (suggestions.size > 5) {
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             suggestions.drop(5).forEach { w ->
-                                WordChip(w, filled = false) {
+                                WordChip(w, filled = false, onClick = {
                                     query = ""
                                     store.addHistory("词", w, "搜索")
                                     nav.navigate(Routes.word(w))
-                                }
+                                })
                             }
                         }
                     }
@@ -187,20 +187,20 @@ fun HomeScreen(nav: NavHostController) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     history.take(6).forEach { h ->
-                        WordChip(h.title, filled = false) {
+                        WordChip(h.title, filled = false, onClick = {
                             if (h.type == "词") nav.navigate(Routes.word(h.title))
                             else nav.navigate(Routes.tools("calc"))
-                        }
+                        })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 if (history.size > 6) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         history.drop(6).forEach { h ->
-                            WordChip(h.title, filled = false) {
+                            WordChip(h.title, filled = false, onClick = {
                                 if (h.type == "词") nav.navigate(Routes.word(h.title))
                                 else nav.navigate(Routes.tools("calc"))
-                            }
+                            })
                         }
                     }
                 }
@@ -210,7 +210,7 @@ fun HomeScreen(nav: NavHostController) {
 }
 
 @Composable
-private fun FeatureCardView(title: String, sub: String, icon: ImageVector, onClick: () -> Unit) {
+private fun androidx.compose.foundation.layout.RowScope.FeatureCardView(title: String, sub: String, icon: ImageVector, onClick: () -> Unit) {
     Column(
         Modifier
             .weight(1f)

@@ -215,9 +215,9 @@ fun StarMapScreen(nav: NavHostController, focus: String) {
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             nb.take(4).forEach { n ->
-                                WordChip(n.word, score = n.score) {
+                                WordChip(n.word, score = n.score, onClick = {
                                     nav.navigate(Routes.word(n.word))
-                                }
+                                })
                             }
                         }
                         Spacer(Modifier.height(8.dp))

@@ -78,12 +78,12 @@ fun WordDetailScreen(nav: NavHostController, word: String) {
             }
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CinnabarButton("词义之路 · 从这出发") {
+                CinnabarButton("词义之路 · 从这出发", onClick = {
                     nav.navigate(Routes.tools("path", from = word))
-                }
-                InkButton("星图定位") {
+                })
+                InkButton("星图定位", onClick = {
                     nav.navigate("starmap?focus=${android.net.Uri.encode(word)}")
-                }
+                })
             }
             Spacer(Modifier.height(18.dp))
         }

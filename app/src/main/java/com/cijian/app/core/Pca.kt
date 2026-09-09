@@ -2,6 +2,11 @@ package com.cijian.app.core
 
 import kotlin.math.sqrt
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /**
  * 端上 PCA 兜底：当 assets 中缺少 pca2d/pca3d 资产（例如用户更换了模型）时，
@@ -14,7 +19,7 @@ object Pca {
         vecs: FloatArray, n: Int, dim: Int, k: Int,
         threads: Int = (Runtime.getRuntime().availableProcessors()).coerceIn(2, 8),
         onProgress: (Float) -> Unit = {}
-    ): FloatArray = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+    ): FloatArray = withContext(Dispatchers.Default) {
 
         // ── 均值 ──
         val mu = FloatArray(dim)
@@ -28,9 +33,9 @@ object Pca {
         // ── 协方差 C = Σ (x-μ)(x-μ)ᵀ，按行分块并行 ──
         val C = FloatArray(dim * dim)
         val chunk = (n + threads - 1) / threads
-        kotlinx.coroutines.coroutineScope {
-            val jobs = (0 until threads).map { t ->
-                kotlinx.coroutines.async {
+        coroutineScope {
+            val jobs: List<kotlinx.coroutines.Deferred<FloatArray>> = (0 until threads).map { t ->
+                async {
                     val P = FloatArray(dim * dim)
                     val x = FloatArray(dim)
                     val from = t * chunk

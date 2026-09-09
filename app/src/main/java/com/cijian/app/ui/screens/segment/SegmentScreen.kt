@@ -78,9 +78,9 @@ fun SegmentScreen(nav: NavHostController) {
             )
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                InkButton("示例") {
+                InkButton("示例", onClick = {
                     text = "国王披上星光的斗篷，从旧日的战场走回春天的花园，爱情与战争在此相遇。"
-                }
+                })
                 Text("共 ${tokens.size} 片 · $inVocab 个词在词表中", color = InkSoft, fontSize = 12.sp)
             }
             Spacer(Modifier.height(18.dp))

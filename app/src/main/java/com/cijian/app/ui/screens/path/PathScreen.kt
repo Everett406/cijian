@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,10 +150,10 @@ fun PathScreen(nav: NavHostController, initFrom: String, initTo: String) {
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CinnabarButton("启程", enabled = !busy, onClick = { launchJourney() })
-                InkButton("示例：爱情 → 战争", enabled = !busy) {
+                InkButton("示例：爱情 → 战争", enabled = !busy, onClick = {
                     from = "爱情"; to = "战争"; searched = true
                     launchJourney()
-                }
+                })
             }
             Spacer(Modifier.height(18.dp))
         }

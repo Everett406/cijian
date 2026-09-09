@@ -176,7 +176,9 @@ fun CalcScreen(nav: NavHostController) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CinnabarButton("启算", enabled = terms.isNotEmpty(), onClick = { launchCompute() })
-                InkButton("清空", enabled = terms.isNotEmpty()) { terms = emptyList(); results = emptyList(); expr = "" }
+                InkButton("清空", enabled = terms.isNotEmpty(), onClick = {
+                    terms = emptyList(); results = emptyList(); expr = ""
+                })
             }
             Spacer(Modifier.height(14.dp))
         }

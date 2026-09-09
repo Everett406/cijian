@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -182,7 +183,7 @@ fun QuizScreen(nav: NavHostController) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CinnabarButton("下一题", onClick = { launchNext() })
-                    InkButton("去算一道") { nav.navigate("tools/calc") }
+                    InkButton("去算一道", onClick = { nav.navigate("tools/calc") })
                 }
                 Spacer(Modifier.height(28.dp))
             }

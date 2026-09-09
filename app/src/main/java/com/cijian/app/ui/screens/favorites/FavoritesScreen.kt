@@ -80,7 +80,7 @@ fun FavoritesScreen(nav: NavHostController) {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         fav.words.forEach { w ->
-                            WordChip(w) { nav.navigate(Routes.word(w)) }
+                            WordChip(w, onClick = { nav.navigate(Routes.word(w)) })
                         }
                     }
                     Spacer(Modifier.height(20.dp))
