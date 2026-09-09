@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,6 +84,7 @@ fun HomeScreen(nav: NavHostController) {
 
     var query by remember { mutableStateOf("") }
     var suggestions by remember { mutableStateOf(listOf<String>()) }
+    val history by store.history.collectAsState()
 
     LaunchedEffect(query) {
         if (query.isBlank()) { suggestions = emptyList(); return@LaunchedEffect }
@@ -174,12 +176,12 @@ fun HomeScreen(nav: NavHostController) {
         }
         item {
             val cards = listOf(
-                FeatureCard("词义之路", "从一个词，走到另一个词", Icons.Outlined.Route, Routes.tool("path")),
-                FeatureCard("词语计算器", "国王 － 男人 ＋ 女人 ≈ ?", Icons.Outlined.Calculate, Routes.tool("calc")),
-                FeatureCard("类比测验", "A 之于 B，如同 C 之于？", Icons.Outlined.Quiz, Routes.tool("quiz")),
-                FeatureCard("语义猜词", "凭相关度提示，猜中隐藏词", Icons.Outlined.Psychology, Routes.tool("guess")),
-                FeatureCard("词桥", "十步之内，从起点搭到终点", Icons.Outlined.SwapHoriz, Routes.tool("bridge")),
-                FeatureCard("分词工坊", "一句话，拆成可玩的词", Icons.Outlined.TextFields, Routes.tool("segment")),
+                FeatureCard("词义之路", "从一词走至另一词", Icons.Outlined.Route, Routes.tool("path")),
+                FeatureCard("词语计算器", "国王 - 男人 + 女人 ≈ ?", Icons.Outlined.Calculate, Routes.tool("calc")),
+                FeatureCard("类比测验", "补全词与词的关系", Icons.Outlined.Quiz, Routes.tool("quiz")),
+                FeatureCard("语义猜词", "凭相关度猜隐藏词", Icons.Outlined.Psychology, Routes.tool("guess")),
+                FeatureCard("词桥", "十步搭起一座桥", Icons.Outlined.SwapHoriz, Routes.tool("bridge")),
+                FeatureCard("分词工坊", "一句话拆成词", Icons.Outlined.TextFields, Routes.tool("segment")),
             )
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.chunked(2).forEach { rowCards ->
@@ -196,8 +198,8 @@ fun HomeScreen(nav: NavHostController) {
 
         // ── 最近足迹 ──
         item { SectionHeader("最近足迹") }
-        val history = store.history.value.take(12)
-        if (history.isEmpty()) {
+        val historyItems = history.take(12)
+        if (historyItems.isEmpty()) {
             item { EmptyHint("走过的路，会留在这里") }
         } else {
             item {
@@ -205,7 +207,7 @@ fun HomeScreen(nav: NavHostController) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    history.forEach { h ->
+                    historyItems.forEach { h ->
                         WordChip(h.title, filled = false, onClick = { nav.navigate(historyRoute(h)) })
                     }
                 }
@@ -228,8 +230,8 @@ private fun androidx.compose.foundation.layout.RowScope.FeatureCardView(title: S
     ) {
         Icon(icon, contentDescription = title, tint = com.cijian.app.ui.theme.Cinnabar, modifier = Modifier.size(22.dp))
         Spacer(Modifier.height(10.dp))
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Spacer(Modifier.height(3.dp))
-        Text(sub, color = InkSoft, fontSize = 11.sp, lineHeight = 15.sp)
+        Text(sub, color = InkSoft, fontSize = 11.sp, lineHeight = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }

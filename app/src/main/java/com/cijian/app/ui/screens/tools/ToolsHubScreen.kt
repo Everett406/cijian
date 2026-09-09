@@ -48,12 +48,12 @@ private data class ToolEntry(val feature: String, val title: String, val sub: St
 @Composable
 fun ToolsHubScreen(nav: NavHostController) {
     val tools = listOf(
-        ToolEntry("path", "词义之路", "从一个词，走到另一个词", Icons.Outlined.Route),
-        ToolEntry("calc", "词语计算器", "国王 － 男人 ＋ 女人 ≈ ?", Icons.Outlined.Calculate),
-        ToolEntry("quiz", "类比测验", "「A 之于 B，如同 C 之于？」", Icons.Outlined.Quiz),
-        ToolEntry("guess", "语义猜词", "相关度提示，猜中隐藏词", Icons.Outlined.Psychology),
-        ToolEntry("bridge", "词桥", "十步之内，从起点搭到终点", Icons.Outlined.SwapHoriz),
-        ToolEntry("segment", "分词工坊", "一句话，拆成可玩的词", Icons.Outlined.TextFields),
+        ToolEntry("path", "词义之路", "从一词走至另一词", Icons.Outlined.Route),
+        ToolEntry("calc", "词语计算器", "国王 - 男人 + 女人 ≈ ?", Icons.Outlined.Calculate),
+        ToolEntry("quiz", "类比测验", "补全词与词的关系", Icons.Outlined.Quiz),
+        ToolEntry("guess", "语义猜词", "凭相关度猜隐藏词", Icons.Outlined.Psychology),
+        ToolEntry("bridge", "词桥", "十步搭起一座桥", Icons.Outlined.SwapHoriz),
+        ToolEntry("segment", "分词工坊", "一句话拆成词", Icons.Outlined.TextFields),
     )
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {

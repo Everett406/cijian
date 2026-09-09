@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,9 @@ fun WordDetailScreen(nav: NavHostController, word: String) {
     LaunchedEffect(word) {
         neighbors = withContext(Dispatchers.Default) { engine.nearest(word, 24) }
     }
+    // 收藏态订阅：状态提升到 Composable 顶层，星标点击后立即刷新
+    val favWords by store.favorites.collectAsState()
+    val isFav = word in favWords.words
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         item {
@@ -68,7 +72,7 @@ fun WordDetailScreen(nav: NavHostController, word: String) {
                     )
                 }
                 Icon(
-                    if (store.favorites.value.words.contains(word)) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    if (isFav) Icons.Filled.Star else Icons.Outlined.StarBorder,
                     contentDescription = "收藏",
                     tint = Cinnabar,
                     modifier = Modifier
@@ -78,12 +82,12 @@ fun WordDetailScreen(nav: NavHostController, word: String) {
             }
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CinnabarButton("词义之路 · 从这出发", onClick = {
+                CinnabarButton("词义之路", onClick = {
                     nav.navigate(Routes.tool("path", from = word))
-                })
+                }, modifier = Modifier.weight(1f))
                 InkButton("星图定位", onClick = {
                     nav.navigate(Routes.starmap(word))
-                })
+                }, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(18.dp))
         }

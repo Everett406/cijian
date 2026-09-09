@@ -3,6 +3,7 @@ package com.cijian.app.ui.screens.quiz
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.cijian.app.ciJian
+import com.cijian.app.core.QuizKind
 import com.cijian.app.core.QuizPairs
 import com.cijian.app.core.QuizQuestion
 import com.cijian.app.ui.components.CinnabarButton
@@ -66,11 +71,17 @@ fun QuizScreen(nav: NavHostController) {
     var score by remember { mutableIntStateOf(0) }
     var streak by remember { mutableIntStateOf(0) }
     var total by remember { mutableIntStateOf(0) }
+    var kind by remember { mutableStateOf(QuizKind.MIX) }
 
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    fun launchNext() {
+    fun launchNext(k: QuizKind) {
+        val real = if (k == QuizKind.MIX)
+            listOf(QuizKind.ANALOGY, QuizKind.CALC, QuizKind.ODD, QuizKind.CLOSEST).random()
+        else k
         scope.launch(Dispatchers.Default) {
-            val q = engine.generateQuiz(QuizPairs.pairs)
+            // 首选题型生成失败时退到最近词题，保证总能出题
+            val q = engine.generateQuiz(QuizPairs.pairs, real)
+                ?: engine.generateQuiz(QuizPairs.pairs, QuizKind.CLOSEST)
             withContext(Dispatchers.Main) {
                 question = q
                 picked = null   // 关键：新题必须清空上一题的选中态，否则会自动亮出答案
@@ -78,7 +89,7 @@ fun QuizScreen(nav: NavHostController) {
         }
     }
 
-    LaunchedEffect(Unit) { launchNext() }
+    LaunchedEffect(kind) { launchNext(kind) }
 
     Column(Modifier.fillMaxSize()) {
         ToolTopBar(title = "类比测验") { nav.popBackStack() }
@@ -87,15 +98,36 @@ fun QuizScreen(nav: NavHostController) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("A 之于 B，如同 C 之于？", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("选一个词，把第二组关系补全", color = InkSoft, fontSize = 13.sp)
+                    Text("词与词的关系，试着推理", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("四种题型，看穿语义的方向", color = InkSoft, fontSize = 13.sp)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("答对 $score / $total", color = InkSoft, fontSize = 13.sp)
                     Text("连对 $streak", color = Cinnabar, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // 题型选择
+        item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuizKind.entries.forEach { k ->
+                    FilterChip(
+                        selected = kind == k,
+                        onClick = { if (kind != k) kind = k },
+                        label = { Text(k.label, fontSize = 13.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Cinnabar,
+                            selectedLabelColor = Paper,
+                        )
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
         }
 
         val q = question
@@ -108,17 +140,27 @@ fun QuizScreen(nav: NavHostController) {
                 )
             }
         } else {
+            // 题目（多行展示，行距独立控制，绝不重叠）
             item {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    q.promptLines.forEach { line ->
+                        Text(
+                            line,
+                            fontSize = 29.sp, fontWeight = FontWeight.Bold,
+                            lineHeight = 44.sp,
+                            modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                // 运算思路提示（不剧透答案）
                 Text(
-                    "${q.a} 之于 ${q.b}",
-                    fontSize = 32.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
-                )
-                Text(
-                    "如同  ${q.c} 之于 ？",
-                    fontSize = 32.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 26.dp),
-                    textAlign = TextAlign.Center
+                    q.hint,
+                    color = InkSoft, fontSize = 13.sp, lineHeight = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 22.dp)
                 )
             }
             item {
@@ -152,7 +194,7 @@ fun QuizScreen(nav: NavHostController) {
                                     picked = opt
                                     total++
                                     if (isAnswer) { score++; streak++ } else streak = 0
-                                    store.addHistory("测验", "类比·${q.a}", "${q.a}→${q.b} · 答案 ${q.answer}")
+                                    store.addHistory("测验", "${q.kind.label} · ${q.answer}", q.explain)
                                 }
                                 .padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center
@@ -183,13 +225,13 @@ fun QuizScreen(nav: NavHostController) {
             item {
                 if (picked != null) {
                     Text(
-                        "答案「${q.answer}」 · 与目标向量的余弦相似度 %.3f\n推理式：${q.b} － ${q.a} ＋ ${q.c} ≈ ${q.answer}".format(q.answerScore),
-                        color = InkSoft, fontSize = 13.sp, lineHeight = 20.sp
+                        "答案「${q.answer}」\n${q.explain}",
+                        color = InkSoft, fontSize = 13.sp, lineHeight = 21.sp
                     )
                     Spacer(Modifier.height(14.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CinnabarButton("下一题", onClick = { launchNext() })
+                    CinnabarButton("下一题", onClick = { launchNext(kind) })
                     InkButton("去算一道", onClick = { nav.navigate(com.cijian.app.ui.nav.Routes.tool("calc")) })
                 }
                 Spacer(Modifier.height(28.dp))

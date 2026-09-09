@@ -89,6 +89,11 @@ class Store(context: Context) {
         persistFav()
     }
 
+    fun clearFavorites() {
+        _favorites.value = Favorites()
+        persistFav()
+    }
+
     // ── 历史 ──
 
     fun addHistory(type: String, title: String, detail: String = "") {

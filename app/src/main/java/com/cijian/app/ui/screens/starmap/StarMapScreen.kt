@@ -79,30 +79,29 @@ private class MapView {
 private class RippleNode(val idx: Int, val word: String, val score: Float, val x: Float, val y: Float, val ring: Int)
 private class RippleLayout(val centerIdx: Int, val centerWord: String, val nodes: List<RippleNode>)
 
-private const val RING_RADII = 0.34f   // 第 k 圈半径 = 0.34 + 0.27k
-
-/** 由中心词构建墨涟布局（重活，须在后台线程调用） */
+/** 由中心词构建墨涟布局（重活，须在后台线程调用）。
+ *  半径 = 1 − 余弦相似度：连续、真实的语义距离，不再按相似度分带入座。 */
 private fun buildRippleLayout(engine: Word2VecEngine, centerIdx: Int): RippleLayout? {
     val w = engine.words[centerIdx]
     val v = engine.vector(w) ?: return null
     val nb = engine.nearestTo(v, 46, setOf(w))
-    val bands = floatArrayOf(0.70f, 0.55f, 0.40f, 0.20f)
     val golden = 2.399963f
     val seed = (centerIdx % 89) / 89f * 6.28318f
-    val counters = IntArray(bands.size + 1)
     val nodes = ArrayList<RippleNode>(nb.size)
+    var k = 0
     for (n in nb) {
+        val idx = engine.indexOf(n.word) ?: continue
+        // 0.85 → 0.15（很近），0.55 → 0.45，0.2 → 0.8（很远）：连续单调
+        val r = (1f - n.score).coerceIn(0.10f, 0.92f)
+        val ang = seed + k * golden
+        k++
         val ring = when {
-            n.score >= bands[0] -> 0
-            n.score >= bands[1] -> 1
-            n.score >= bands[2] -> 2
-            n.score >= bands[3] -> 3
+            n.score >= 0.70f -> 0
+            n.score >= 0.55f -> 1
+            n.score >= 0.40f -> 2
+            n.score >= 0.20f -> 3
             else -> 4
         }
-        val idx = engine.indexOf(n.word) ?: continue
-        val r = RING_RADII + 0.27f * ring
-        val k = counters[ring]++
-        val ang = seed + k * golden + ring * 0.7f
         nodes.add(RippleNode(idx, n.word, n.score, r * cos(ang), r * sin(ang), ring))
     }
     return RippleLayout(centerIdx, w, nodes)
@@ -158,7 +157,7 @@ fun StarMapScreen(nav: NavHostController, focus: String) {
                 Text("语义星图", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(
                     if (is3d) "14 万词的语义星空 · 拖动环视，双指缩放"
-                    else "四圈涟漪由近及远 · 点词可探",
+                    else "半径即真实语义距离 · 越近越相似",
                     color = InkSoft, fontSize = 12.sp
                 )
             }
@@ -238,6 +237,19 @@ fun StarMapScreen(nav: NavHostController, focus: String) {
                     selected = selected,
                     onSelect = { selected = it },
                     modifier = Modifier.fillMaxSize(),
+                )
+                // ── 复位视角：平移/缩放找不回时一键回到中心 ──
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        view.offX = 0f; view.offY = 0f; view.scale = 1f
+                        view.yaw = 0.6f; view.pitch = 0.35f; view.dist = 3.2f
+                    },
+                    label = { Text("复位", fontSize = 13.sp) },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Paper.copy(alpha = 0.92f),
+                    )
                 )
                 // ── 选中词信息卡 ──
                 if (selected >= 0) {
@@ -347,8 +359,10 @@ private fun StarCanvas(
                         view.dist = (view.dist / zoom).coerceIn(0.55f, 12f)   // 大幅放宽缩放深度
                     } else {
                         view.scale = (view.scale * zoom).coerceIn(0.5f, 3f)
-                        view.offX += pan.x
-                        view.offY += pan.y
+                        // 平移边界：中心词永不跑出画面，防止"移出去找不回"
+                        val maxPan = min(size.width, size.height) * 1.05f
+                        view.offX = (view.offX + pan.x).coerceIn(-maxPan, maxPan)
+                        view.offY = (view.offY + pan.y).coerceIn(-maxPan, maxPan)
                     }
                 }
             }
@@ -357,7 +371,7 @@ private fun StarCanvas(
                     if (!is3d) {
                         val rp = ripple ?: return@detectTapGestures
                         val sizeC = this.size
-                        val base = min(sizeC.width, sizeC.height) / 3.1f * view.scale
+                        val base = min(sizeC.width, sizeC.height) / 2.6f * view.scale
                         val ox = sizeC.width / 2f + view.offX
                         val oy = sizeC.height / 2f + view.offY
                         var best = -1; var bd = 40f * 40f
@@ -379,18 +393,18 @@ private fun StarCanvas(
         val nc = drawContext.canvas.nativeCanvas
 
         if (!is3d) {
-            // ── 墨涟：2D 语义邻域图 ──
+            // ── 墨涟：2D 语义邻域图（半径 = 1 − 余弦，真实距离） ──
             val rp = ripple ?: return@Canvas
-            val base = min(w, h) / 3.1f * view.scale
+            val base = min(w, h) / 2.6f * view.scale
             val ox = cx + view.offX
             val oy = cy + view.offY
 
-            // 五圈涟漪（相似度等高线）
-            val ringLabels = listOf("≥0.70", "≥0.55", "≥0.40", "≥0.20", "更远")
-            for (k in 0 until 5) {
-                val rpx = (RING_RADII + 0.27f * k) * base
+            // 相似度等高线：词的位置按真实距离连续分布，环只是参考刻度
+            val contours = listOf(0.80f, 0.60f, 0.40f, 0.20f)
+            for (s in contours) {
+                val rpx = (1f - s) * base
                 drawCircle(
-                    color = InkFaint.copy(alpha = 0.6f),
+                    color = InkFaint.copy(alpha = 0.55f),
                     radius = rpx,
                     center = Offset(ox, oy),
                     style = Stroke(
@@ -398,7 +412,7 @@ private fun StarCanvas(
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 14f))
                     )
                 )
-                nc.drawText(ringLabels[k], ox, oy - rpx - 7f, ringPaint)
+                nc.drawText("%.2f".format(s), ox, oy - rpx - 7f, ringPaint)
             }
             // 涟漪辐线
             for (n in rp.nodes) {

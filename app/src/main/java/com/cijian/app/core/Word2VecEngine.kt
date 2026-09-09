@@ -288,26 +288,141 @@ class Word2VecEngine {
 
     // ────────────────────────── 类比测验 ──────────────────────────
 
-    /** 出题：a:b :: c:? ，从词对库选 a→b，c 取 a 的近邻，答案按经典四词类比推理。 */
-    fun generateQuiz(pairs: List<Pair<String, String>>): QuizQuestion? {
-        val usable = pairs.filter { contains(it.first) && contains(it.second) }
+    /** 出题（题型由调用方决定；「混合」模式在 UI 层随机挑一种传入）。 */
+    fun generateQuiz(pairs: List<Pair<String, String>>, kind: QuizKind): QuizQuestion? = when (kind) {
+        QuizKind.ANALOGY -> genAnalogy(pairs)
+        QuizKind.CALC -> genCalc(pairs)
+        QuizKind.ODD -> genOdd()
+        QuizKind.CLOSEST -> genClosest()
+        QuizKind.MIX -> null
+    }
+
+    private fun usablePairs(pairs: List<Pair<String, String>>) =
+        pairs.filter { contains(it.first) && contains(it.second) }
+
+    /** 干扰项不足时用常用词兜底补齐，保证每题必有 4 个选项 */
+    private fun fillDistractors(ds: MutableList<String>, answer: String, exclude: Set<String>, need: Int) {
+        var guard = 0
+        while (ds.size < need && guard++ < 40) {
+            val w = randomCommonWord()
+            if (w !in ds && w !in exclude && w != answer) ds.add(w)
+        }
+    }
+
+    /** 题型一：经典类比 A 之于 B，如同 C 之于 ？（把 B−A 的关系差平移到 C） */
+    private fun genAnalogy(pairs: List<Pair<String, String>>): QuizQuestion? {
+        val usable = usablePairs(pairs)
         if (usable.isEmpty()) return null
-        val (a, b) = usable[Random.Default.nextInt(usable.size)]
-        val va = vector(a)!!
-        val neighbors = nearestTo(va, 40, setOf(a, b)).filter { it.score < 0.82f }
-        val c = neighbors.getOrNull(Random.Default.nextInt(neighbors.size.coerceAtLeast(1)))?.word
-            ?: return null
-        val vb = vector(b)!!; val vc = vector(c)!!
-        val target = FloatArray(dim) { j -> vb[j] - va[j] + vc[j] }
-        val answer = nearestTo(target, 1, setOf(a, b, c)).firstOrNull() ?: return null
-        val distractors = nearestTo(vc, 12, setOf(a, b, c, answer.word))
-            .shuffled().take(3).map { it.word }
-        val options = (distractors + answer.word).shuffled()
-        return QuizQuestion(a, b, c, answer.word, options, answer.score)
+        repeat(4) {
+            val (a, b) = usable[Random.Default.nextInt(usable.size)]
+            val va = vector(a) ?: return null
+            val c = nearestTo(va, 40, setOf(a, b))
+                .filter { it.score < 0.82f }
+                .randomOrNull()?.word ?: return@repeat
+            val vb = vector(b) ?: return null
+            val vc = vector(c) ?: return null
+            val target = FloatArray(dim) { j -> vb[j] - va[j] + vc[j] }
+            val ans = nearestTo(target, 1, setOf(a, b, c)).firstOrNull() ?: return@repeat
+            if (ans.score < 0.35f) return@repeat  // 类比关系太弱，换一组
+            val ds = nearestTo(target, 40, setOf(a, b, c, ans.word))
+                .filter { it.score < ans.score - 0.06f }.shuffled().take(3).map { it.word }.toMutableList()
+            fillDistractors(ds, ans.word, setOf(a, b, c), 3)
+            return QuizQuestion(
+                QuizKind.ANALOGY,
+                listOf("$a 之于 $b", "如同 $c 之于 ？"),
+                "思路：把「$b - $a」这段关系差，平移到 $c 上试试",
+                (ds + ans.word).shuffled(), ans.word, ans.score,
+                "推理式：$b - $a + $c ≈ ${ans.word}（余弦 %.3f）".format(ans.score)
+            )
+        }
+        return null
+    }
+
+    /** 题型二：二词算式 A - B = ? 或 A + B = ? */
+    private fun genCalc(pairs: List<Pair<String, String>>): QuizQuestion? {
+        val usable = usablePairs(pairs)
+        if (usable.isEmpty()) return null
+        repeat(6) {
+            val (a, b) = usable[Random.Default.nextInt(usable.size)]
+            val va = vector(a) ?: return null
+            val vb = vector(b) ?: return null
+            val minus = Random.Default.nextBoolean()
+            val target = FloatArray(dim) { j -> if (minus) va[j] - vb[j] else va[j] + vb[j] }
+            val ans = nearestTo(target, 1, setOf(a, b)).firstOrNull() ?: return@repeat
+            val ok = if (minus) ans.score in 0.28f..0.85f else ans.score in 0.45f..0.92f
+            if (!ok) return@repeat
+            val ds = nearestTo(target, 40, setOf(a, b, ans.word))
+                .filter { it.score < ans.score - 0.07f }.shuffled().take(3).map { it.word }.toMutableList()
+            fillDistractors(ds, ans.word, setOf(a, b), 3)
+            val expr = if (minus) "$a - $b = ?" else "$a + $b = ?"
+            return QuizQuestion(
+                QuizKind.CALC, listOf(expr),
+                if (minus) "思路：减去一个词，等于朝它语义的反方向走一步"
+                else "思路：两个词叠加，结果落在它们共同指向的方向上",
+                (ds + ans.word).shuffled(), ans.word, ans.score,
+                "${if (minus) "$a - $b" else "$a + $b"} ≈ ${ans.word}（余弦 %.3f）".format(ans.score)
+            )
+        }
+        return null
+    }
+
+    /** 题型三：圈外人（三个同类词夹一个例外） */
+    private fun genOdd(): QuizQuestion? {
+        repeat(6) {
+            val seed = randomCommonWord()
+            val near = nearest(seed, 40, setOf(seed))
+            val group = near.filter { it.score in 0.60f..0.88f }.take(3)
+            if (group.size < 3) return@repeat
+            val outCand = near.filter { it.score in 0.22f..0.50f }
+                .filter { o -> group.all { g -> similarity(o.word, g.word) < 0.55f } }
+            val outsider = outCand.randomOrNull() ?: return@repeat
+            val innerAvg = (similarity(group[0].word, group[1].word) +
+                    similarity(group[0].word, group[2].word) +
+                    similarity(group[1].word, group[2].word)) / 3f
+            val outAvg = group.map { similarity(outsider.word, it.word) }.average().toFloat()
+            return QuizQuestion(
+                QuizKind.ODD,
+                listOf("四个词里，谁最不合群？"),
+                "思路：有三个词彼此的向量靠得很近，一个是例外",
+                (group.map { it.word } + outsider.word).shuffled(),
+                outsider.word, outAvg,
+                "「${outsider.word}」与另三词的平均相似度仅 %.3f，而三词彼此 ≈ %.3f".format(outAvg, innerAvg)
+            )
+        }
+        return null
+    }
+
+    /** 题型四：最近词热身（谁与种子词向量夹角最小） */
+    private fun genClosest(): QuizQuestion? {
+        repeat(6) {
+            val seed = randomCommonWord()
+            val near = nearest(seed, 12, setOf(seed))
+            val ans = near.firstOrNull { it.score in 0.55f..0.95f } ?: return@repeat
+            val ds = near.filter { it.score in 0.10f..0.42f }.shuffled().take(3).map { it.word }.toMutableList()
+            fillDistractors(ds, ans.word, setOf(seed), 3)
+            return QuizQuestion(
+                QuizKind.CLOSEST,
+                listOf("哪个词与「$seed」最相近？"),
+                "思路：谁的向量与它的夹角最小",
+                (ds + ans.word).shuffled(), ans.word, ans.score,
+                "「${ans.word}」与「$seed」的余弦相似度 %.3f".format(ans.score)
+            )
+        }
+        return null
     }
 }
 
+/** 测验题型。MIX 仅用于 UI 层表示「混合」，传给引擎前会先随机成具体题型 */
+enum class QuizKind(val label: String) {
+    MIX("混合"), ANALOGY("类比"), CALC("算式"), ODD("圈外人"), CLOSEST("最近词")
+}
+
 data class QuizQuestion(
-    val a: String, val b: String, val c: String, val answer: String,
-    val options: List<String>, val answerScore: Float
+    val kind: QuizKind,
+    val promptLines: List<String>,   // 题目展示行（可多行，行距由 UI 控制）
+    val hint: String,                // 运算思路提示（不剧透答案）
+    val options: List<String>,
+    val answer: String,
+    val answerScore: Float,
+    val explain: String              // 答题后的解析（含运算式与相似度）
 )

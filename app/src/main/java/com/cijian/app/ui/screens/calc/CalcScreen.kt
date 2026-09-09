@@ -74,8 +74,8 @@ fun CalcScreen(nav: NavHostController) {
     var errorHint by remember { mutableStateOf("") }
 
     fun buildExpr(): String =
-        terms.joinToString(" ") { ((if (it.plus) "＋ " else "－ ") + it.word) }
-            .replaceFirst("＋ ", "").replaceFirst("－ ", "")
+        terms.joinToString(" ") { ((if (it.plus) "+ " else "- ") + it.word) }
+            .replaceFirst("+ ", "").replaceFirst("- ", "")
 
     fun addTerm() {
         val w = input.trim()
@@ -114,9 +114,9 @@ fun CalcScreen(nav: NavHostController) {
         // 输入行
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ModeButton("＋ 加", modePlus) { modePlus = true }
+                ModeButton("+ 加", modePlus) { modePlus = true }
                 Spacer(Modifier.width(8.dp))
-                ModeButton("－ 减", !modePlus) { modePlus = false }
+                ModeButton("- 减", !modePlus) { modePlus = false }
                 Spacer(Modifier.width(10.dp))
                 OutlinedTextField(
                     value = input,
@@ -158,7 +158,7 @@ fun CalcScreen(nav: NavHostController) {
                                     .background(if (t.plus) Indigo else Cinnabar),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(if (t.plus) "＋" else "－", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
+                                Text(if (t.plus) "+" else "-", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(10.dp))
                             WordChip(t.word, onClick = { }) // 点击无动作，展示用
@@ -198,8 +198,8 @@ fun CalcScreen(nav: NavHostController) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 presets.forEach { p ->
                     InkButton(
-                        text = p.joinToString(" ") { ((if (it.plus) "＋ " else "－ ") + it.word) }
-                            .replaceFirst("＋ ", "").replaceFirst("－ ", "") + " ＝ ?",
+                        text = p.joinToString(" ") { ((if (it.plus) "+ " else "- ") + it.word) }
+                            .replaceFirst("+ ", "").replaceFirst("- ", "") + " = ?",
                         onClick = { terms = p; }
                     )
                 }

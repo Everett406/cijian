@@ -1,6 +1,15 @@
 package com.cijian.app.ui.nav
 
 import android.net.Uri
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -21,9 +30,20 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -50,6 +70,7 @@ import com.cijian.app.ui.screens.word.WordDetailScreen
 import com.cijian.app.ui.theme.Cinnabar
 import com.cijian.app.ui.theme.InkSoft
 import com.cijian.app.ui.theme.Paper
+import kotlin.math.abs
 
 object Routes {
     const val HOME = "home"
@@ -143,11 +164,40 @@ fun MainScaffold() {
             }
         }
     ) { padding ->
-        Box(Modifier.background(MaterialTheme.colorScheme.background)) {
+        // 全局上下过冲：列表滚到头继续拖，整页轻微位移并弹回
+        val bounce = remember { mutableFloatStateOf(0f) }
+        val bounceConn = rememberBounceOverscroll(bounce)
+        Box(
+            Modifier
+                .background(MaterialTheme.colorScheme.background)
+                .nestedScroll(bounceConn)
+                .graphicsLayer { translationY = bounce.floatValue }
+        ) {
             NavHost(
                 navController = nav,
                 startDestination = Routes.HOME,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(padding),
+                // 页面切换：新页自右侧轻滑入，旧页向左淡出；返回时反向
+                enterTransition = {
+                    slideInHorizontally(
+                        tween(320, easing = FastOutSlowInEasing)
+                    ) { it / 4 } + fadeIn(tween(320))
+                },
+                exitTransition = {
+                    slideOutHorizontally(
+                        tween(320, easing = FastOutSlowInEasing)
+                    ) { -it / 10 } + fadeOut(tween(220))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(
+                        tween(320, easing = FastOutSlowInEasing)
+                    ) { -it / 10 } + fadeIn(tween(320))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(
+                        tween(320, easing = FastOutSlowInEasing)
+                    ) { it / 4 } + fadeOut(tween(220))
+                }
             ) {
                 composable(Routes.HOME) { HomeScreen(nav) }
                 composable(Routes.TOOLS_HUB) { ToolsHubScreen(nav) }
@@ -184,6 +234,58 @@ fun MainScaffold() {
                 ) { entry ->
                     WordDetailScreen(nav, entry.arguments?.getString("word").orEmpty())
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 全局「果冻」过冲：任何内部列表滚到尽头后继续拖动，整页以橡胶阻尼位移，
+ * 松手后弹回。只用 onPostScroll 拿列表吃剩的量，正常滚动零干扰。
+ */
+@Composable
+private fun rememberBounceOverscroll(offset: MutableFloatState): NestedScrollConnection {
+    val density = LocalDensity.current
+    val maxPx = with(density) { 120.dp.toPx() }
+    val anim = remember { Animatable(0f) }
+    return remember(maxPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val cur = offset.floatValue
+                val want = available.y
+                if (cur == 0f || want == 0f) return Offset.Zero
+                // 与过冲方向相反的拖动：先原路回弹到 0，再放行给列表
+                val restore = if (cur > 0f && want < 0f) (-want).coerceAtMost(cur)
+                else if (cur < 0f && want > 0f) want.coerceAtMost(-cur)
+                else 0f
+                if (restore > 0f) {
+                    offset.floatValue = cur + (if (cur > 0f) -restore else restore)
+                    return Offset(0f, if (cur > 0f) -restore else restore)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.Drag) return Offset.Zero
+                val d = available.y
+                if (d == 0f) return Offset.Zero
+                if (anim.isRunning) anim.stop()
+                val cur = offset.floatValue
+                val room = ((maxPx - abs(cur)) / maxPx).coerceIn(0f, 1f)
+                offset.floatValue = (cur + d * 0.42f * room).coerceIn(-maxPx, maxPx)
+                return Offset(0f, d)
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (offset.floatValue != 0f) {
+                    anim.stop()
+                    anim.snapTo(offset.floatValue)
+                    anim.animateTo(
+                        0f,
+                        spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                    ) { _, _, _ -> offset.floatValue = anim.value }
+                }
+                return Velocity.Zero
             }
         }
     }

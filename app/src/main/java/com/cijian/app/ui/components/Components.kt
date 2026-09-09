@@ -146,7 +146,7 @@ fun CinnabarButton(
             .padding(horizontal = 20.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Paper, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(text, color = Paper, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -166,7 +166,7 @@ fun InkButton(
             .padding(horizontal = 20.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = if (enabled) Ink else InkFaint, fontSize = 15.sp)
+        Text(text, color = if (enabled) Ink else InkFaint, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
