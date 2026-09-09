@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+
 package com.cijian.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme

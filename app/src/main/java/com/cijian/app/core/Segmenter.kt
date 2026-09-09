@@ -50,10 +50,15 @@ class Segmenter(private val vocab: Set<String>) {
     private fun isAsciiWord(c: Char): Boolean =
         c.code < 0x2E80 && (c.isLetterOrDigit() || c == '_' || c == '-')
 
+    // 引号类标点用 Unicode 转义，避免在字面量中出现裸引号
+    private val punctChars =
+        "，。！？；：、（）《》【】…—·｡\u201C\u201D\u2018\u2019,.;:!?()[]{}<>\"'/\\|@#\$%^&*+=~`".toSet()
+
     private fun isPunct(c: Char): Boolean {
         if (c.isWhitespace()) return false
-        return c in "，。！？；：、""''（）《》【】…—·！？｡,.;:!?()[]{}<>\"'/\\|@#\$%^&*+=~`"
-                || c.code in 0x3000..0x303F || c.code in 0xFF00..0xFFEF && !c.isLetterOrDigit()
+        if (c.code in 0x3000..0x303F) return true   // CJK 符号区
+        if (c.code in 0xFF00..0xFFEF && !c.isLetterOrDigit()) return true  // 全角符号区
+        return c in punctChars
     }
 
     /** 前向最大匹配 */

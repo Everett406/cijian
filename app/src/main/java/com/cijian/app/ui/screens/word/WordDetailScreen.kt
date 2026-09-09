@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -68,7 +68,7 @@ fun WordDetailScreen(nav: NavHostController, word: String) {
                     )
                 }
                 Icon(
-                    if (store.favorites.value.words.contains(word)) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                    if (store.favorites.value.words.contains(word)) Icons.Filled.Star else Icons.Outlined.StarBorder,
                     contentDescription = "收藏",
                     tint = Cinnabar,
                     modifier = Modifier
