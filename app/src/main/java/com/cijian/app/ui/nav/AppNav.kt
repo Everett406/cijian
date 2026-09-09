@@ -36,13 +36,16 @@ import com.cijian.app.EngineState
 import com.cijian.app.ErrorScreen
 import com.cijian.app.LoadingScreen
 import com.cijian.app.ciJian
+import com.cijian.app.ui.screens.bridge.BridgeScreen
 import com.cijian.app.ui.screens.calc.CalcScreen
 import com.cijian.app.ui.screens.favorites.FavoritesScreen
+import com.cijian.app.ui.screens.guess.GuessScreen
 import com.cijian.app.ui.screens.home.HomeScreen
 import com.cijian.app.ui.screens.path.PathScreen
 import com.cijian.app.ui.screens.quiz.QuizScreen
 import com.cijian.app.ui.screens.segment.SegmentScreen
 import com.cijian.app.ui.screens.starmap.StarMapScreen
+import com.cijian.app.ui.screens.tools.ToolsHubScreen
 import com.cijian.app.ui.screens.word.WordDetailScreen
 import com.cijian.app.ui.theme.Cinnabar
 import com.cijian.app.ui.theme.InkSoft
@@ -50,22 +53,26 @@ import com.cijian.app.ui.theme.Paper
 
 object Routes {
     const val HOME = "home"
-    const val STARMAP = "starmap?focus={focus}"
+    const val TOOLS_HUB = "tools"                                  // 词途·工具集（Tab）
+    const val TOOL = "tool/{feature}?from={from}&to={to}"          // 玩法页（独立、带返回键、无底栏）
+    const val STARMAP = "starmap?focus={focus}"                    // 星图（Tab）
     const val FAVORITES = "favorites"
     const val WORD = "word/{word}"
-    const val TOOLS = "tools/{feature}?from={from}&to={to}"
 
     fun word(w: String) = "word/${Uri.encode(w)}"
 
-    fun tools(feature: String, from: String? = null, to: String? = null): String {
+    fun tool(feature: String, from: String? = null, to: String? = null): String {
         val f = Uri.encode(from ?: "")
         val t = Uri.encode(to ?: "")
-        return "tools/$feature?from=$f&to=$t"
+        return "tool/$feature?from=$f&to=$t"
     }
+
+    fun starmap(focus: String? = null): String =
+        if (focus.isNullOrBlank()) "starmap" else "starmap?focus=${Uri.encode(focus)}"
 }
 
 private data class Tab(
-    val base: String,        // 用于选中的路由前缀
+    val base: String,        // 选中态匹配的路由前缀
     val navRoute: String,    // 点击导航的目标
     val label: String,
     val icon: ImageVector,
@@ -74,8 +81,8 @@ private data class Tab(
 
 private val tabs = listOf(
     Tab("home", Routes.HOME, "首页", Icons.Outlined.Home, Icons.Filled.Home),
-    Tab("tools", Routes.tools("calc"), "词途", Icons.Outlined.Store, Icons.Filled.Store),
-    Tab("starmap", Routes.STARMAP, "星图", Icons.Outlined.Map, Icons.Filled.Map),
+    Tab("tools", Routes.TOOLS_HUB, "词途", Icons.Outlined.Store, Icons.Filled.Store),
+    Tab("starmap", Routes.starmap(), "星图", Icons.Outlined.Map, Icons.Filled.Map),
     Tab("favorites", Routes.FAVORITES, "收藏", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
 )
 
@@ -94,14 +101,21 @@ fun MainScaffold() {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: Routes.HOME
-    val showBar = route == Routes.HOME || route == Routes.STARMAP ||
-            route == Routes.FAVORITES || route.startsWith("tools")
+
+    // 只有四个 Tab 页显示底栏；玩法页（tool/...）与词详情页全屏沉浸
+    val showBar = route == Routes.HOME || route == Routes.TOOLS_HUB ||
+            route == Routes.FAVORITES || route.startsWith("starmap")
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (showBar) {
-                val base = if (route.startsWith("tools")) "tools" else route
+                val base = when {
+                    route == Routes.HOME -> "home"
+                    route == Routes.TOOLS_HUB -> "tools"
+                    route == Routes.FAVORITES -> "favorites"
+                    else -> "starmap"
+                }
                 NavigationBar(containerColor = Paper) {
                     for (tab in tabs) {
                         val selected = tab.base == base
@@ -136,22 +150,24 @@ fun MainScaffold() {
                 modifier = Modifier.padding(padding)
             ) {
                 composable(Routes.HOME) { HomeScreen(nav) }
+                composable(Routes.TOOLS_HUB) { ToolsHubScreen(nav) }
                 composable(
-                    Routes.TOOLS,
+                    Routes.TOOL,
                     arguments = listOf(
                         navArgument("feature") { type = NavType.StringType },
                         navArgument("from") { type = NavType.StringType; defaultValue = "" },
                         navArgument("to") { type = NavType.StringType; defaultValue = "" },
                     )
                 ) { entry ->
-                    when (entry.arguments?.getString("feature") ?: "calc") {
-                        "path" -> PathScreen(
-                            nav,
-                            entry.arguments?.getString("from").orEmpty(),
-                            entry.arguments?.getString("to").orEmpty()
-                        )
+                    val feature = entry.arguments?.getString("feature") ?: "calc"
+                    val from = entry.arguments?.getString("from").orEmpty()
+                    val to = entry.arguments?.getString("to").orEmpty()
+                    when (feature) {
+                        "path" -> PathScreen(nav, from, to)
                         "segment" -> SegmentScreen(nav)
                         "quiz" -> QuizScreen(nav)
+                        "guess" -> GuessScreen(nav)
+                        "bridge" -> BridgeScreen(nav)
                         else -> CalcScreen(nav)
                     }
                 }

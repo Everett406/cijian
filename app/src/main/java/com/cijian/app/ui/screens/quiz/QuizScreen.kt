@@ -44,6 +44,7 @@ import com.cijian.app.core.QuizPairs
 import com.cijian.app.core.QuizQuestion
 import com.cijian.app.ui.components.CinnabarButton
 import com.cijian.app.ui.components.InkButton
+import com.cijian.app.ui.components.ToolTopBar
 import com.cijian.app.ui.theme.Cinnabar
 import com.cijian.app.ui.theme.Indigo
 import com.cijian.app.ui.theme.InkFaint
@@ -70,18 +71,24 @@ fun QuizScreen(nav: NavHostController) {
     fun launchNext() {
         scope.launch(Dispatchers.Default) {
             val q = engine.generateQuiz(QuizPairs.pairs)
-            withContext(Dispatchers.Main) { question = q }
+            withContext(Dispatchers.Main) {
+                question = q
+                picked = null   // 关键：新题必须清空上一题的选中态，否则会自动亮出答案
+            }
         }
     }
 
     LaunchedEffect(Unit) { launchNext() }
 
+    Column(Modifier.fillMaxSize()) {
+        ToolTopBar(title = "类比测验") { nav.popBackStack() }
+
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("类比测验", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("a : b :: c : ? —— 语义空间的完形填空", color = InkSoft, fontSize = 13.sp)
+                    Text("A 之于 B，如同 C 之于？", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("选一个词，把第二组关系补全", color = InkSoft, fontSize = 13.sp)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("答对 $score / $total", color = InkSoft, fontSize = 13.sp)
@@ -103,13 +110,13 @@ fun QuizScreen(nav: NavHostController) {
         } else {
             item {
                 Text(
-                    "${q.a} : ${q.b}",
-                    fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                    "${q.a} 之于 ${q.b}",
+                    fontSize = 32.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                 )
                 Text(
-                    "::  ${q.c} : ?",
-                    fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                    "如同  ${q.c} 之于 ？",
+                    fontSize = 32.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 26.dp),
                     textAlign = TextAlign.Center
                 )
@@ -145,7 +152,7 @@ fun QuizScreen(nav: NavHostController) {
                                     picked = opt
                                     total++
                                     if (isAnswer) { score++; streak++ } else streak = 0
-                                    store.addHistory("测验", "${q.a}:${q.b} :: ${q.c}:?", "答案 ${q.answer}")
+                                    store.addHistory("测验", "类比·${q.a}", "${q.a}→${q.b} · 答案 ${q.answer}")
                                 }
                                 .padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center
@@ -176,17 +183,18 @@ fun QuizScreen(nav: NavHostController) {
             item {
                 if (picked != null) {
                     Text(
-                        "答案「${q.answer}」 · 与目标向量的余弦相似度 %.3f\n推理式：${q.b} − ${q.a} + ${q.c} ≈ ${q.answer}".format(q.answerScore),
+                        "答案「${q.answer}」 · 与目标向量的余弦相似度 %.3f\n推理式：${q.b} － ${q.a} ＋ ${q.c} ≈ ${q.answer}".format(q.answerScore),
                         color = InkSoft, fontSize = 13.sp, lineHeight = 20.sp
                     )
                     Spacer(Modifier.height(14.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CinnabarButton("下一题", onClick = { launchNext() })
-                    InkButton("去算一道", onClick = { nav.navigate("tools/calc") })
+                    InkButton("去算一道", onClick = { nav.navigate(com.cijian.app.ui.nav.Routes.tool("calc")) })
                 }
                 Spacer(Modifier.height(28.dp))
             }
         }
+    }
     }
 }

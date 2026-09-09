@@ -47,6 +47,7 @@ import com.cijian.app.ui.components.EmptyHint
 import com.cijian.app.ui.components.InkButton
 import com.cijian.app.ui.components.ScoreBar
 import com.cijian.app.ui.components.SectionHeader
+import com.cijian.app.ui.components.ToolTopBar
 import com.cijian.app.ui.components.WordChip
 import com.cijian.app.ui.nav.Routes
 import com.cijian.app.ui.theme.Cinnabar
@@ -73,8 +74,8 @@ fun CalcScreen(nav: NavHostController) {
     var errorHint by remember { mutableStateOf("") }
 
     fun buildExpr(): String =
-        terms.joinToString(" ") { ((if (it.plus) "+ " else "− ") + it.word) }
-            .replaceFirst("+ ", "").replaceFirst("− ", "")
+        terms.joinToString(" ") { ((if (it.plus) "＋ " else "－ ") + it.word) }
+            .replaceFirst("＋ ", "").replaceFirst("－ ", "")
 
     fun addTerm() {
         val w = input.trim()
@@ -101,10 +102,11 @@ fun CalcScreen(nav: NavHostController) {
         }
     }
 
+    Column(Modifier.fillMaxSize()) {
+        ToolTopBar(title = "词语计算器") { nav.popBackStack() }
+
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
         item {
-            Text("词语计算器", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
             Text("向量可以做算术：语义的方向，加减出来", color = InkSoft, fontSize = 13.sp)
             Spacer(Modifier.height(16.dp))
         }
@@ -112,9 +114,9 @@ fun CalcScreen(nav: NavHostController) {
         // 输入行
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ModeButton("+ 加", modePlus) { modePlus = true }
+                ModeButton("＋ 加", modePlus) { modePlus = true }
                 Spacer(Modifier.width(8.dp))
-                ModeButton("− 减", !modePlus) { modePlus = false }
+                ModeButton("－ 减", !modePlus) { modePlus = false }
                 Spacer(Modifier.width(10.dp))
                 OutlinedTextField(
                     value = input,
@@ -156,7 +158,7 @@ fun CalcScreen(nav: NavHostController) {
                                     .background(if (t.plus) Indigo else Cinnabar),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(if (t.plus) "+" else "−", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
+                                Text(if (t.plus) "＋" else "－", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(10.dp))
                             WordChip(t.word, onClick = { }) // 点击无动作，展示用
@@ -196,8 +198,8 @@ fun CalcScreen(nav: NavHostController) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 presets.forEach { p ->
                     InkButton(
-                        text = p.joinToString(" ") { ((if (it.plus) "+ " else "− ") + it.word) }
-                            .replaceFirst("+ ", "").replaceFirst("− ", "") + " = ?",
+                        text = p.joinToString(" ") { ((if (it.plus) "＋ " else "－ ") + it.word) }
+                            .replaceFirst("＋ ", "").replaceFirst("－ ", "") + " ＝ ?",
                         onClick = { terms = p; }
                     )
                 }
@@ -252,6 +254,7 @@ fun CalcScreen(nav: NavHostController) {
                 }
             }
         }
+    }
     }
 }
 

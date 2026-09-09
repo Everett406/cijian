@@ -13,7 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,7 +75,7 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, trailing: @Compos
     }
 }
 
-/** 墨线词片 */
+/** 墨线词片：单行省略，绝不换行撑高 */
 @Composable
 fun WordChip(
     word: String,
@@ -78,9 +84,11 @@ fun WordChip(
     score: Float? = null,
     accent: Color = Ink,
     filled: Boolean = false,
+    maxWidth: Dp = 150.dp,
 ) {
     Row(
         modifier = modifier
+            .widthIn(max = maxWidth)
             .clip(RoundedCornerShape(4.dp))
             .background(if (filled) accent else Paper)
             .border(1.dp, if (filled) accent else InkFaint, RoundedCornerShape(4.dp))
@@ -92,7 +100,9 @@ fun WordChip(
             word,
             color = if (filled) Paper else accent,
             fontSize = 16.sp,
-            fontWeight = if (filled) FontWeight.Bold else FontWeight.Normal
+            fontWeight = if (filled) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         if (score != null) {
             Spacer(Modifier.width(6.dp))
@@ -102,6 +112,21 @@ fun WordChip(
                 fontSize = 11.sp
             )
         }
+    }
+}
+
+/** 玩法页顶栏：返回 + 标题（底部栏隐藏，返回键明确） */
+@Composable
+fun ToolTopBar(title: String, onBack: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 4.dp, end = 20.dp, top = 8.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回", tint = Ink)
+        }
+        Spacer(Modifier.width(2.dp))
+        Text(title, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

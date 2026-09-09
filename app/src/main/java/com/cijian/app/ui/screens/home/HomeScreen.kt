@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,9 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Dialpad
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +65,16 @@ import kotlinx.coroutines.withContext
 
 private data class FeatureCard(val title: String, val sub: String, val icon: ImageVector, val route: String)
 
+private fun historyRoute(h: com.cijian.app.data.HistoryItem): String = when (h.type) {
+    "词" -> Routes.word(h.title)
+    "测验" -> Routes.tool("quiz")
+    "路径" -> Routes.tool("path")
+    "猜词" -> Routes.tool("guess")
+    "词桥" -> Routes.tool("bridge")
+    else -> Routes.tool("calc")
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(nav: NavHostController) {
     val app = androidx.compose.ui.platform.LocalContext.current.ciJian
@@ -155,15 +169,17 @@ fun HomeScreen(nav: NavHostController) {
 
         // ── 功能入口 ──
         item {
-            SectionHeader("四般玩法")
+            SectionHeader("六般玩法")
             Spacer(Modifier.height(4.dp))
         }
         item {
             val cards = listOf(
-                FeatureCard("词义之路", "从一个词，走到另一个词", Icons.Outlined.Route, Routes.tools("path")),
-                FeatureCard("词语计算器", "国王 − 男人 + 女人 ≈ ?", Icons.Outlined.Calculate, Routes.tools("calc")),
-                FeatureCard("类比测验", "猜猜语义空间填什么", Icons.Outlined.Quiz, Routes.tools("quiz")),
-                FeatureCard("分词工坊", "一句话，拆成可玩的词", Icons.Outlined.TextFields, Routes.tools("segment")),
+                FeatureCard("词义之路", "从一个词，走到另一个词", Icons.Outlined.Route, Routes.tool("path")),
+                FeatureCard("词语计算器", "国王 － 男人 ＋ 女人 ≈ ?", Icons.Outlined.Calculate, Routes.tool("calc")),
+                FeatureCard("类比测验", "A 之于 B，如同 C 之于？", Icons.Outlined.Quiz, Routes.tool("quiz")),
+                FeatureCard("语义猜词", "凭相关度提示，猜中隐藏词", Icons.Outlined.Psychology, Routes.tool("guess")),
+                FeatureCard("词桥", "十步之内，从起点搭到终点", Icons.Outlined.SwapHoriz, Routes.tool("bridge")),
+                FeatureCard("分词工坊", "一句话，拆成可玩的词", Icons.Outlined.TextFields, Routes.tool("segment")),
             )
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 cards.chunked(2).forEach { rowCards ->
@@ -185,25 +201,15 @@ fun HomeScreen(nav: NavHostController) {
             item { EmptyHint("走过的路，会留在这里") }
         } else {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    history.take(6).forEach { h ->
-                        WordChip(h.title, filled = false, onClick = {
-                            if (h.type == "词") nav.navigate(Routes.word(h.title))
-                            else nav.navigate(Routes.tools("calc"))
-                        })
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    history.forEach { h ->
+                        WordChip(h.title, filled = false, onClick = { nav.navigate(historyRoute(h)) })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                if (history.size > 6) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        history.drop(6).forEach { h ->
-                            WordChip(h.title, filled = false, onClick = {
-                                if (h.type == "词") nav.navigate(Routes.word(h.title))
-                                else nav.navigate(Routes.tools("calc"))
-                            })
-                        }
-                    }
-                }
             }
         }
     }

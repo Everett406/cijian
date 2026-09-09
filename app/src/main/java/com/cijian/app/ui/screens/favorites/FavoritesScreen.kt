@@ -91,7 +91,7 @@ fun FavoritesScreen(nav: NavHostController) {
                 fav.calcs.forEach { item0 ->
                     item {
                         Column(Modifier.fillMaxWidth().clickable {
-                            nav.navigate(Routes.tools("calc"))
+                            nav.navigate(Routes.tool("calc"))
                         }.padding(vertical = 10.dp)) {
                             Text(item0.expr, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             Text(
@@ -110,7 +110,7 @@ fun FavoritesScreen(nav: NavHostController) {
                 fav.paths.forEach { p ->
                     item {
                         Column(Modifier.fillMaxWidth().clickable {
-                            nav.navigate(Routes.tools("path", from = p.from, to = p.to))
+                            nav.navigate(Routes.tool("path", from = p.from, to = p.to))
                         }.padding(vertical = 10.dp)) {
                             Text("${p.from} → ${p.to}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             Text(

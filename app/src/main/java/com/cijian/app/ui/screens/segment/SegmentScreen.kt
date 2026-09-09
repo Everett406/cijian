@@ -38,6 +38,7 @@ import com.cijian.app.ciJian
 import com.cijian.app.core.Segmenter
 import com.cijian.app.ui.components.InkButton
 import com.cijian.app.ui.components.SectionHeader
+import com.cijian.app.ui.components.ToolTopBar
 import com.cijian.app.ui.nav.Routes
 import com.cijian.app.ui.theme.Cinnabar
 import com.cijian.app.ui.theme.Indigo
@@ -59,10 +60,11 @@ fun SegmentScreen(nav: NavHostController) {
     }
     val inVocab = tokens.count { it.kind != Segmenter.Kind.PUNCT && it.inVocab }
 
+    Column(Modifier.fillMaxSize()) {
+        ToolTopBar(title = "分词工坊") { nav.popBackStack() }
+
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
         item {
-            Text("分词工坊", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
             Text("词典即词向量词表：切出来的每个词，都可以直接拿去玩", color = InkSoft, fontSize = 13.sp)
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
@@ -137,5 +139,6 @@ fun SegmentScreen(nav: NavHostController) {
                 color = InkSoft, fontSize = 12.sp, lineHeight = 19.sp
             )
         }
+    }
     }
 }

@@ -57,6 +57,7 @@ import com.cijian.app.ui.components.EmptyHint
 import com.cijian.app.ui.components.InkButton
 import com.cijian.app.ui.components.ScoreBar
 import com.cijian.app.ui.components.SectionHeader
+import com.cijian.app.ui.components.ToolTopBar
 import com.cijian.app.ui.nav.Routes
 import com.cijian.app.ui.theme.Cinnabar
 import com.cijian.app.ui.theme.Indigo
@@ -102,10 +103,11 @@ fun PathScreen(nav: NavHostController, initFrom: String, initTo: String) {
         }
     }
 
+    Column(Modifier.fillMaxSize()) {
+        ToolTopBar(title = "词义之路") { nav.popBackStack() }
+
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
         item {
-            Text("词义之路", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
             Text("在语义空间里，从「爱情」走到「战争」会路过什么？", color = InkSoft, fontSize = 13.sp)
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -199,6 +201,7 @@ fun PathScreen(nav: NavHostController, initFrom: String, initTo: String) {
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
     }
 }
 

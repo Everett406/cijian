@@ -21,6 +21,7 @@ class Word2VecEngine {
     var dim: Int = 0; private set
     var size: Int = 0; private set
     var words: List<String> = emptyList(); private set
+    var commonWords: List<String> = emptyList(); private set   // 人工精选常用词（assets/common_words.txt，已过词表校验）
     private lateinit var vecs: FloatArray          // 已 L2 归一化，行优先
     private lateinit var index: HashMap<String, Int>
 
@@ -49,6 +50,12 @@ class Word2VecEngine {
 
         index = HashMap(size * 2)
         for (i in 0 until size) if (!index.containsKey(words[i])) index[words[i]] = i
+
+        // 常用词表：猜词 / 词桥 / 星图随机定位共用，避免机器随机到偏门词
+        commonWords = runCatching {
+            context.assets.open("common_words.txt").bufferedReader().readLines()
+                .map { it.trim() }.filter { it.isNotEmpty() && index.containsKey(it) }
+        }.getOrDefault(emptyList())
 
         // PCA 资产：优先 assets，缺失则端上计算并缓存
         val cacheDir = context.getFileStreamPath("pca_cache")
@@ -136,7 +143,9 @@ class Word2VecEngine {
     // ────────────────────────── 基础查询 ──────────────────────────
 
     fun contains(w: String): Boolean = ::index.isInitialized && index.containsKey(w)
-    fun indexOf(w: String): Int = index[w] ?: -1
+
+    /** 不存在时返回 null —— 调用方一律用 `?: ` 判空，避免拿到 -1 误用导致崩溃 */
+    fun indexOf(w: String): Int? = if (::index.isInitialized) index[w] else null
     fun vector(w: String): FloatArray? {
         val i = indexOf(w) ?: return null
         return vecs.copyOfRange(i * dim, i * dim + dim)
@@ -159,6 +168,16 @@ class Word2VecEngine {
         }
         return words[rnd.nextInt(size)]
     }
+
+    /** 从人工精选常用词里随机取一个（可选限定两个字），用于猜词/词桥/星图定位 */
+    fun randomCommonWord(twoChar: Boolean = false): String {
+        val pool = if (twoChar) commonWords.filter { it.length == 2 } else commonWords
+        if (pool.isEmpty()) return randomWord()
+        return pool[Random.Default.nextInt(pool.size)]
+    }
+
+    /** 余弦相似度映射为 0~100 的「相关度」：-0.35 及以下归零，1.0 归百 */
+    fun relevancePct(cos: Float): Float = ((cos + 0.35f) / 1.35f).coerceIn(0f, 1f) * 100f
 
     /** 前缀搜索建议：精确匹配置顶。 */
     fun prefixSearch(q: String, limit: Int = 12): List<String> {
