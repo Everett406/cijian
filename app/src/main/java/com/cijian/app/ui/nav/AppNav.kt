@@ -34,6 +34,7 @@ import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -72,6 +73,7 @@ import com.cijian.app.ui.screens.word.WordDetailScreen
 import com.cijian.app.ui.theme.Cinnabar
 import com.cijian.app.ui.theme.InkSoft
 import com.cijian.app.ui.theme.Paper
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 object Routes {
@@ -251,6 +253,7 @@ fun MainScaffold() {
 private fun rememberBounceOverscroll(offset: MutableFloatState): NestedScrollConnection {
     val density = LocalDensity.current
     val maxPx = with(density) { 120.dp.toPx() }
+    val scope = rememberCoroutineScope()
     val anim = remember { Animatable(0f) }
     return remember(maxPx) {
         object : NestedScrollConnection {
@@ -273,7 +276,7 @@ private fun rememberBounceOverscroll(offset: MutableFloatState): NestedScrollCon
                 if (source != NestedScrollSource.Drag) return Offset.Zero
                 val d = available.y
                 if (d == 0f) return Offset.Zero
-                if (anim.isRunning) anim.stop()
+                if (anim.isRunning) scope.launch { anim.stop() }
                 val cur = offset.floatValue
                 val room = ((maxPx - abs(cur)) / maxPx).coerceIn(0f, 1f)
                 offset.floatValue = (cur + d * 0.42f * room).coerceIn(-maxPx, maxPx)
@@ -287,7 +290,7 @@ private fun rememberBounceOverscroll(offset: MutableFloatState): NestedScrollCon
                     anim.animateTo(
                         0f,
                         spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
-                    ) { _, _, _ -> offset.floatValue = anim.value }
+                    ) { offset.floatValue = value }
                 }
                 return Velocity.Zero
             }
