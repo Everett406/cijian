@@ -1,9 +1,9 @@
----
 
 > [!NOTE]
 > **本仓库已迁移至 Gitee**：<https://gitee.com/Everett5678/cijian>
 > GitHub 端仅作只读归档，新代码请推送到 Gitee。
 
+---
 # 词间 CiJian
 
 > 词与词之间，有路可走。
